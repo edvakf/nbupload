@@ -35,7 +35,6 @@ class FileUploaderWidget(widgets.DOMWidget):
         """
         self.close_file()
         self._file_handler = open(os.path.join(self.dirname, self.filename), 'wb')
-        self.percentage = 0
 
     def _handle_custom_msg(self, content):
         """Handle a msg from the front-end.
@@ -67,7 +66,6 @@ class FileUploaderWidget(widgets.DOMWidget):
         if data['base64']:
             payload = binascii.a2b_base64(payload)
         self._file_handler.write(payload)
-        self.percentage = data['percentage']
 
     def _on_eof(self):
         """Called when file upload finished.
