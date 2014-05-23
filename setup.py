@@ -10,4 +10,7 @@ setup(
     keywords = "ipython notebook",
     url = "https://github.com/edvakf/nbupload",
     packages=['nbupload'],
+    package_data = {
+        'nbupload': ['FileUploaderView.js'],
+    },
 )
