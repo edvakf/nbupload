@@ -64,9 +64,9 @@ class FileUploaderWidget(widgets.DOMWidget):
         """Called when file upload finished.
         """
         self.close_file()
-        print("Saved: {}".format(self.filename))
+        print(u'Saved: {}'.format(self.filename))
 
     def _on_error(self, data):
         self.close_file()
-        print('Error: {}'.format(data['message']), file=sys.stderr)
+        print(u'Error: {}'.format(data['message']), file=sys.stderr)
 
