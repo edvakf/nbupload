@@ -71,6 +71,13 @@ class FileUploaderWidget(widgets.DOMWidget):
         print(u'Saved: {}'.format(self.filename))
 
     def _on_error(self, data):
+        """Called when error is received.
+
+        Parameters
+        ----------
+        content: data
+            'message': error message
+        """
         self.close_file()
         print(u'Error: {}'.format(data['message']), file=sys.stderr)
 
