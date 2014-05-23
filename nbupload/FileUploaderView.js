@@ -4,17 +4,81 @@ require(["widgets/js/widget"], function(WidgetManager){
     // multiple of 6 because we encode the bytes in base64
     var CHUNK_SIZE = 6 * 16 * 1024;
 
-    // runs an array of asynchronous functions
-    // each function takes a callback function that it calls after itself
-    function run_chain(fns) {
-        var next = fns.shift();
-        if (!next) return;
-        next(function() { run_chain(fns); });
+    /**
+     * jQuery Deferred wrapper of FileReader
+     *
+     * @param {Blob} blob of a file http://www.w3.org/TR/FileAPI/#dfn-Blob
+     * @return Promise that resolves with the base64 encoded file content
+     */
+    var readFile = function(file) {
+        var deferred = $.Deferred();
+        var reader = new FileReader();
+        reader.onerror = function(e) {
+            deferred.reject('an error occurred while reading the file');
+        },
+        reader.onload = function(e) {
+            var m, dataurl = e.target.result;
+            if (!(m = /^data:.*?(;base64),/.exec(dataurl))) {
+                deferred.reject('file could not be read');
+            }
+            if (m[1] !== ';base64') {
+                deferred.reject('only base64 encoded data-uri is supported');
+            }
+            deferred.resolve(dataurl.slice(m[0].length));
+        };
+        reader.readAsDataURL(file);
+        return deferred.promise();
     };
 
+    /**
+     * read file progressively with jQuery Deferred's "progress" interface
+     *
+     * @param {Blob} blob of a file http://www.w3.org/TR/FileAPI/#dfn-Blob
+     * @return Promise
+     */
+    var progressiveReadFile = function(file) {
+        var d_progress = $.Deferred(); // deferred to return
+        var d_chain = $.Deferred(); // last of the internal deferred chain
+        var d_kick = d_chain; // first of the internal deferred chain
+
+        for (var from = 0, total = file.size; from < total; from += CHUNK_SIZE) {
+            (function(from) {
+                d_chain = d_chain.then(function() {
+                    var to = Math.min(from + CHUNK_SIZE, total);
+                    var slice = file.slice(from, to);
+                    return readFile(slice).then(
+                        function (data) {
+                            d_progress.notify({
+                                'total_bytes': total,
+                                'range_start': from,
+                                'range_end': to,
+                                'chunk': data,
+                            });
+                        },
+                        function (err) {
+                            d_progress.reject(err);
+                        }
+                    );
+                });
+            } (from));
+        }
+        d_chain.then(function() {
+            d_progress.resolve();
+        });
+        d_kick.resolve();
+        return d_progress.promise();
+    };
+
+    /**
+     * IPython notebook widget for uploading a local file to notebook server
+     *
+     * @class FileUploaderView
+     */
     var FileUploaderView = IPython.DOMWidgetView.extend({
         render: function(){
-            this.setElement($('<input />').attr('type', 'file'));
+            var elem = $('<p><input type="file"/></p>');
+            elem.append($('<code class="info"></code>').hide());
+            this.setElement(elem);;
         },
 
         events: {
@@ -32,57 +96,33 @@ require(["widgets/js/widget"], function(WidgetManager){
             this.model.set('filename', file.name);
             this.touch();
 
-            var that = this;
-            var chain = [];
-
-            for (var stop = 0, end = file.size; stop < end; stop += CHUNK_SIZE) {
-                var chunk = file.slice(stop, stop + CHUNK_SIZE);
-                var percentage = Math.floor(stop * 100 / end);
-
-                // enclose loop variables
-                (function(chunk, percentage) {
-                    // add chain function
-                    chain.push(function(callback) {
-                        that.model.set('percentage', percentage);
-                        that.touch();
-                        that._send_file(chunk, callback);
-                    });
-                }(chunk, percentage));
-            }
-            chain.push(function(callback) {
-                that.send({'event': 'eof'});
-                that.model.set('percentage', 100);
-                that.touch();
-            });
-
-            run_chain(chain);
+            this._handle_file(file);
         },
 
-        _send_file: function(file, callback) {
-            var reader = new FileReader();
+        _handle_file: function(file) {
             var that = this;
-            reader.onerror = function(e) {
-                that._send_error('an error occurred while reading the file');
-            },
-            reader.onload = function(e) {
-                var dataurl = e.target.result;
-                var match;
-                if (!(match = /^data:.*?(;base64),/.exec(dataurl))) {
-                    that._send_error('file could not be read');
+            progressiveReadFile(file).then(
+                function done() {
+                    that._update_percentage(100);
+                    that.send({'event': 'eof'});
+                },
+                function fail(err) {
+                    that._send_error(err);
+                },
+                function progress(data) {
+                    that._update_percentage(data['range_end'] / data['total_bytes'] * 100);
+                    that._send_body(data['chunk']);
                 }
-                var base64 = match[1] === ';base64';
-                var pos = match[0].length;
-                var len = dataurl.length;
-                that.send({
-                    'event': 'body',
-                    'data': {
-                        'payload': dataurl.slice(pos),
-                        'base64': base64,
-                    }
-                });
-                callback();
-            };
-            reader.readAsDataURL(file);
+            );
+        },
+
+        _send_body: function(payload) {
+            this.send({
+                'event': 'body',
+                'data': {
+                    'payload': payload
+                }
+            });
         },
 
         _send_error: function(message) {
@@ -91,7 +131,17 @@ require(["widgets/js/widget"], function(WidgetManager){
                 'data': {
                     'message': message
                 }
-            })
+            });
+        },
+
+        _update_percentage: function(percentage) {
+            var bar = '[';
+            var len = 30;
+            for (var i = 0; i < len; i++) {
+                bar += ((i + 1) / len * 100 <= percentage) ? '*' : ' ';
+            }
+            bar += ']';
+            this.$el.find('.info').show().text(bar);
         },
     });
 

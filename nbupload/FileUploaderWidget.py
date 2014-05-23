@@ -2,12 +2,11 @@ from __future__ import print_function
 from IPython.html import widgets
 from IPython.utils.traitlets import Unicode, Int
 import binascii
-import os
+import os, sys
 
 class FileUploaderWidget(widgets.DOMWidget):
     _view_name = Unicode('FileUploaderView', sync=True)
     filename = Unicode(sync=True)
-    percentage = Int(0, sync=True)
     _file_handler = None
 
     def __init__(self, dirname=None, **kwargs):
@@ -17,9 +16,6 @@ class FileUploaderWidget(widgets.DOMWidget):
             self.dirname = os.getcwd()
         else:
             self.dirname = os.path.abspath(dirname)
-
-        self.error = widgets.CallbackDispatcher()
-        self.loaded = widgets.CallbackDispatcher()
 
         self.on_msg(self._handle_custom_msg)
 
@@ -49,30 +45,28 @@ class FileUploaderWidget(widgets.DOMWidget):
             if content['event'] == 'error':
                 self._on_error(content['data'])
             elif content['event'] == 'body':
-                self._on_chunk(content['data'])
+                self._on_body(content['data'])
             elif content['event'] == 'eof':
                 self._on_eof()
 
-    def _on_chunk(self, data):
+    def _on_body(self, data):
         """Called when chunk of file body is received.
 
         Parameters
         ----------
         content: data
-            'base64': whether payload is base64 encoded; boolean
-            'payload': chunk of data
+            'payload': base64 encoded content of file
         """
-        payload = data['payload']
-        if data['base64']:
-            payload = binascii.a2b_base64(payload)
+        payload = binascii.a2b_base64(data['payload'])
         self._file_handler.write(payload)
 
     def _on_eof(self):
         """Called when file upload finished.
         """
         self.close_file()
-        self.loaded()
+        print("Saved: {}".format(self.filename))
 
     def _on_error(self, data):
-        self.error(data['message'])
+        self.close_file()
+        print('Error: {}'.format(data['message']), file=sys.stderr)
 
