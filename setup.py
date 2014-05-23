@@ -8,6 +8,6 @@ setup(
     description = ("An IPython Notebook widget for letting users upload a file"),
     license = "MIT",
     keywords = "ipython notebook",
-    url = "",
+    url = "https://github.com/edvakf/nbupload",
     packages=['nbupload'],
 )
