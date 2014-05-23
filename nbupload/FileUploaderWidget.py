@@ -1,6 +1,6 @@
 from __future__ import print_function
 from IPython.html import widgets
-from IPython.utils.traitlets import Unicode, Int
+from IPython.utils.traitlets import Unicode
 from IPython.display import clear_output
 import binascii
 import os, sys
