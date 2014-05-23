@@ -76,9 +76,7 @@ require(["widgets/js/widget"], function(WidgetManager){
      */
     var FileUploaderView = IPython.DOMWidgetView.extend({
         render: function(){
-            var elem = $('<p><input type="file"/></p>');
-            elem.append($('<code class="info"></code>').hide());
-            this.setElement(elem);;
+            this.setElement($('<input type="file"/>'));
         },
 
         events: {
@@ -103,24 +101,24 @@ require(["widgets/js/widget"], function(WidgetManager){
             var that = this;
             progressiveReadFile(file).then(
                 function done() {
-                    that._update_percentage(100);
                     that.send({'event': 'eof'});
                 },
                 function fail(err) {
                     that._send_error(err);
                 },
                 function progress(data) {
-                    that._update_percentage(data['range_end'] / data['total_bytes'] * 100);
-                    that._send_body(data['chunk']);
+                    var percentage = Math.floor(data['range_end'] / data['total_bytes'] * 100);
+                    that._send_body(data['chunk'], percentage);
                 }
             );
         },
 
-        _send_body: function(payload) {
+        _send_body: function(payload, percentage) {
             this.send({
                 'event': 'body',
                 'data': {
-                    'payload': payload
+                    'payload': payload,
+                    'percentage': percentage,
                 }
             });
         },
@@ -132,16 +130,6 @@ require(["widgets/js/widget"], function(WidgetManager){
                     'message': message
                 }
             });
-        },
-
-        _update_percentage: function(percentage) {
-            var bar = '[';
-            var len = 30;
-            for (var i = 0; i < len; i++) {
-                bar += ((i + 1) / len * 100 <= percentage) ? '*' : ' ';
-            }
-            bar += ']';
-            this.$el.find('.info').show().text(bar);
         },
     });
 

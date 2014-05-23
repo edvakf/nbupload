@@ -1,6 +1,7 @@
 from __future__ import print_function
 from IPython.html import widgets
 from IPython.utils.traitlets import Unicode, Int
+from IPython.display import clear_output
 import binascii
 import os, sys
 
@@ -56,17 +57,33 @@ class FileUploaderWidget(widgets.DOMWidget):
         ----------
         content: data
             'payload': base64 encoded content of file
+            'percentage': percentage of file sent
         """
         payload = binascii.a2b_base64(data['payload'])
         self._file_handler.write(payload)
+        self._update_percentage(data['percentage'])
 
     def _on_eof(self):
         """Called when file upload finished.
         """
         self.close_file()
+        self._update_percentage(100)
         print(u'Saved: {}'.format(self.filename))
 
     def _on_error(self, data):
         self.close_file()
         print(u'Error: {}'.format(data['message']), file=sys.stderr)
 
+    def _update_percentage(self, percentage):
+        """Clear current output and print progress bar
+        """
+        bar = 'Progress ['
+        length = 50
+        for i in range(0, length):
+            if ((i + 1) / length * 100 <= percentage):
+                bar += '*'
+            else:
+                bar += ' '
+        bar += ']'
+        clear_output(wait=True) # avoid flickering
+        print(bar)
